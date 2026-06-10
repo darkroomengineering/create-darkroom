@@ -1,0 +1,33 @@
+name: Release
+
+# Publishes to npm via trusted publishing (GitHub OIDC) — no token, no OTP.
+# Trigger: push a tag matching the package.json version, e.g.
+#   git tag v0.2.0 && git push origin v0.2.0
+# The trusted publisher on npmjs.com is pinned to THIS filename (release.yml);
+# renaming the file breaks the OIDC trust until npm settings are updated.
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+  id-token: write # OIDC token for npm trusted publishing
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24 # ships npm ≥ 11.5.1, required for trusted publishing
+          registry-url: https://registry.npmjs.org
+      - name: Tag must match package.json version
+        run: test "v$(jq -r .version package.json)" = "$GITHUB_REF_NAME"
+      - run: bun install --frozen-lockfile
+      # prepublishOnly runs `bun run check && bun run build`
+      - run: npm publish
