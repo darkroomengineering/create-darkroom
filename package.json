@@ -1,6 +1,6 @@
 {
   "name": "create-darkroom",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Scaffold a darkroom.engineering project — satus (Next.js) or novus (React Router) — with the integrations you pick",
   "license": "MIT",
   "type": "module",
