@@ -17,8 +17,6 @@ You'll be asked which starter to use and — for satus — which integrations to
 
 The CLI is a thin orchestrator. It clones the starter you pick, installs dependencies, then hands off to the starter's own `setup:project` script for integration selection — all integration knowledge lives (and is tested) in each starter repo, so this package rarely needs updating.
 
-For satus, the starter's git ref is recorded into the new project's `package.json` (`satus.ref`) before history is stripped, so integrations removed at setup can be restored later with `bun run satus add <plugin>`.
-
 The clone's git history is replaced with a fresh `git init` + initial commit.
 
 ## Options
