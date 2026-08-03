@@ -5,24 +5,34 @@
  *   bun create darkroom [name] [options]
  *   npm create darkroom@latest -- [name] [options]
  *
- * Clones a starter (satus or novus) at a git ref, then delegates integration
- * selection to the starter's own in-repo `setup:project` script. This CLI
- * deliberately knows nothing about individual integrations — that logic
- * lives (and is tested) in each starter, so the CLI never drifts.
+ * Clones a starter (satus or novus) at a git ref, strips the starter's own repo
+ * metadata, then delegates integration selection to the starter's in-repo
+ * `setup:project` script. This CLI deliberately knows nothing about individual
+ * integrations — that logic lives (and is tested) in each starter, so the CLI
+ * never drifts.
  *
  * Options:
  *   --starter <satus|novus>   Skip the starter prompt
  *   --ref <branch|tag>        Clone a specific ref (default: main)
  *   --preset <key>            Pass-through to setup:project (non-interactive)
+ *                             satus: editorial|studio|boutique|gallery|blank
  *   --keep <id,id,...>        Pass-through to setup:project ('' = lean build)
+ *                             satus: sanity,shopify,hubspot,mailchimp,webgl,theatre
  *   --clean-homepage          Pass-through to setup:project
  *   --skip-setup              Clone + install only, run setup:project later
  *   --skip-install            Skip dependency installation
  */
 
 import { spawnSync } from 'node:child_process'
-import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import {
+  existsSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs'
 import { join, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import * as p from '@clack/prompts'
 import pc from 'picocolors'
 
@@ -30,18 +40,42 @@ const STARTERS = {
   satus: {
     repo: 'https://github.com/darkroomengineering/satus.git',
     label: 'Satūs — Next.js',
-    hint: 'React 19, Tailwind v4, integrations: Sanity, Shopify, WebGL, HubSpot, Mailchimp',
+    hint: 'Next.js 16, React 19, Tailwind v4, integrations: Sanity, Shopify, HubSpot, Mailchimp, WebGL, Theatre.js',
     hasSetup: true,
+    note: undefined,
   },
   novus: {
     repo: 'https://github.com/darkroomengineering/novus.git',
     label: 'Novus — React Router',
-    hint: 'React Router framework mode',
+    hint: 'React Router 7, React 19, Tailwind v4, Vite 8',
     hasSetup: false,
+    // novus boots the bundled marketing site by default; a real project has to
+    // opt into its own routes. Surfaced here because nothing else tells you.
+    note: 'novus serves the bundled `example/` site until you point `appDirectory` at `app/` in react-router.config.ts',
   },
 } as const
 
 type StarterId = keyof typeof STARTERS
+
+/**
+ * Files that describe the *starter repo* rather than a project built from it.
+ * They are harmless in the starter and wrong in a clone: FUNDING points at
+ * darkroom's sponsors, the Slack and dependabot-automerge workflows are pinned
+ * to darkroom's Vercel team and branch protection, and the changelog belongs to
+ * the template's own history. Paths are relative to the project root; missing
+ * entries are skipped, so this list can safely name files from either starter.
+ *
+ * LICENSE is deliberately NOT here. The starters are MIT, which requires the
+ * notice to travel with substantial portions of the code — a scaffold is one.
+ * Replace it by hand if the project ships under different terms.
+ */
+const STARTER_ONLY_PATHS = [
+  '.github/FUNDING.yml',
+  '.github/workflows/lighthouse-to-slack.yml',
+  '.github/workflows/automerge-dependabot.yml',
+  'CHANGELOG.md',
+  'plans',
+] as const
 
 const VALUE_FLAGS = ['--starter', '--ref', '--preset', '--keep'] as const
 const BOOLEAN_FLAGS = [
@@ -163,14 +197,28 @@ async function promptStarter(): Promise<StarterId> {
   return answer
 }
 
-/** Rewrite the cloned package.json into a fresh project manifest. */
+/**
+ * Rewrite the cloned package.json into a fresh project manifest.
+ *
+ * `description` is dropped rather than rewritten — inheriting it would leave a
+ * new project describing itself as the starter. `license` stays: it matches the
+ * LICENSE file the scaffold keeps for MIT attribution.
+ */
 function personalizePackageJson(projectPath: string, name: string): void {
   const pkgPath = join(projectPath, 'package.json')
   const pkg = JSON.parse(readFileSync(pkgPath, 'utf8'))
   pkg.name = name
   pkg.version = '0.1.0'
   pkg.private = true
+  delete pkg.description
   writeFileSync(pkgPath, `${JSON.stringify(pkg, null, 2)}\n`)
+}
+
+/** Delete the starter's own repo metadata from the new project. */
+function removeStarterOnlyPaths(projectPath: string): void {
+  for (const relative of STARTER_ONLY_PATHS) {
+    rmSync(join(projectPath, relative), { recursive: true, force: true })
+  }
 }
 
 async function main(): Promise<void> {
@@ -192,6 +240,24 @@ async function main(): Promise<void> {
   const name = args.name ?? (await promptName())
   const starterId = args.starter ?? (await promptStarter())
   const starter = STARTERS[starterId]
+
+  // These only mean something to a starter that ships setup:project. Accepting
+  // them silently would let a CI invocation think it configured integrations
+  // that were never applied.
+  if (!starter.hasSetup) {
+    const unsupported = [
+      args.preset !== undefined && '--preset',
+      args.keep !== undefined && '--keep',
+      args.cleanHomepage && '--clean-homepage',
+    ].filter((flag): flag is string => flag !== false)
+
+    if (unsupported.length > 0) {
+      fail(
+        `${unsupported.join(', ')} ${unsupported.length === 1 ? 'is' : 'are'} not supported by ${starterId} — it has no integration setup step`,
+      )
+    }
+  }
+
   const projectPath = resolve(process.cwd(), name)
 
   if (!commandExists('git')) {
@@ -203,8 +269,7 @@ async function main(): Promise<void> {
     )
   }
 
-  // 1. Clone the starter. `.git` is kept until after setup:project runs so
-  //    the starter can record its own HEAD sha (used by `satus add`).
+  // 1. Clone the starter. History is stripped in step 4, once setup has run.
   p.log.step(`Cloning ${starter.label} (${args.ref})…`)
   const cloned = run('git', [
     'clone',
@@ -220,6 +285,7 @@ async function main(): Promise<void> {
   }
 
   personalizePackageJson(projectPath, name)
+  removeStarterOnlyPaths(projectPath)
 
   // 2. Install — required before setup:project, which imports dependencies.
   if (!args.skipInstall) {
@@ -259,12 +325,35 @@ async function main(): Promise<void> {
     )
   }
 
+  if (starter.note !== undefined) {
+    p.log.info(starter.note)
+  }
+
   p.outro(
     `Done. Next steps:\n\n  ${pc.cyan(`cd ${name}`)}\n  ${pc.cyan('bun dev')}`,
   )
 }
 
-main().catch((error) => {
-  console.error(pc.red(error instanceof Error ? error.message : String(error)))
-  process.exit(1)
-})
+/**
+ * True when this file is the process entry point rather than an import.
+ * `process.argv[1]` is the `.bin` symlink npm installs, so both sides are
+ * resolved through realpath before comparing.
+ */
+function isEntryPoint(): boolean {
+  const entry = process.argv[1]
+  if (entry === undefined) return false
+  try {
+    return realpathSync(entry) === realpathSync(fileURLToPath(import.meta.url))
+  } catch {
+    return false
+  }
+}
+
+if (isEntryPoint()) {
+  main().catch((error) => {
+    console.error(
+      pc.red(error instanceof Error ? error.message : String(error)),
+    )
+    process.exit(1)
+  })
+}
