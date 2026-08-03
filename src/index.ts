@@ -60,17 +60,20 @@ type StarterId = keyof typeof STARTERS
 /**
  * Files that describe the *starter repo* rather than a project built from it.
  * They are harmless in the starter and wrong in a clone: FUNDING points at
- * darkroom's sponsors, the Slack/automerge workflows are pinned to darkroom's
- * Vercel team and branch-protection setup, and the changelog/licence belong to
+ * darkroom's sponsors, the Slack and dependabot-automerge workflows are pinned
+ * to darkroom's Vercel team and branch protection, and the changelog belongs to
  * the template's own history. Paths are relative to the project root; missing
  * entries are skipped, so this list can safely name files from either starter.
+ *
+ * LICENSE is deliberately NOT here. The starters are MIT, which requires the
+ * notice to travel with substantial portions of the code — a scaffold is one.
+ * Replace it by hand if the project ships under different terms.
  */
 const STARTER_ONLY_PATHS = [
   '.github/FUNDING.yml',
   '.github/workflows/lighthouse-to-slack.yml',
   '.github/workflows/automerge-dependabot.yml',
   'CHANGELOG.md',
-  'LICENSE',
   'plans',
 ] as const
 
@@ -197,9 +200,9 @@ async function promptStarter(): Promise<StarterId> {
 /**
  * Rewrite the cloned package.json into a fresh project manifest.
  *
- * `description` and `license` are dropped rather than rewritten — inheriting
- * them would leave a new project describing itself as the starter and claiming
- * the starter's licence.
+ * `description` is dropped rather than rewritten — inheriting it would leave a
+ * new project describing itself as the starter. `license` stays: it matches the
+ * LICENSE file the scaffold keeps for MIT attribution.
  */
 function personalizePackageJson(projectPath: string, name: string): void {
   const pkgPath = join(projectPath, 'package.json')
@@ -208,7 +211,6 @@ function personalizePackageJson(projectPath: string, name: string): void {
   pkg.version = '0.1.0'
   pkg.private = true
   delete pkg.description
-  delete pkg.license
   writeFileSync(pkgPath, `${JSON.stringify(pkg, null, 2)}\n`)
 }
 
@@ -238,6 +240,24 @@ async function main(): Promise<void> {
   const name = args.name ?? (await promptName())
   const starterId = args.starter ?? (await promptStarter())
   const starter = STARTERS[starterId]
+
+  // These only mean something to a starter that ships setup:project. Accepting
+  // them silently would let a CI invocation think it configured integrations
+  // that were never applied.
+  if (!starter.hasSetup) {
+    const unsupported = [
+      args.preset !== undefined && '--preset',
+      args.keep !== undefined && '--keep',
+      args.cleanHomepage && '--clean-homepage',
+    ].filter((flag): flag is string => flag !== false)
+
+    if (unsupported.length > 0) {
+      fail(
+        `${unsupported.join(', ')} ${unsupported.length === 1 ? 'is' : 'are'} not supported by ${starterId} — it has no integration setup step`,
+      )
+    }
+  }
+
   const projectPath = resolve(process.cwd(), name)
 
   if (!commandExists('git')) {

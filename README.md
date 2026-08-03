@@ -19,9 +19,11 @@ The CLI is a thin orchestrator. It clones the starter you pick, installs depende
 
 On top of the clone it does three things:
 
-1. Rewrites `package.json` — sets your project name, resets the version to `0.1.0`, marks it `private`, and drops the starter's `description` and `license` so your project doesn't inherit them.
-2. Deletes the starter's own repo metadata — `.github/FUNDING.yml`, the Slack and dependabot-automerge workflows (both pinned to darkroom's Vercel team and branch protection), `CHANGELOG.md`, `LICENSE`, and `plans/`. The starter's CI, dependabot config and PR template are kept.
+1. Rewrites `package.json` — sets your project name, resets the version to `0.1.0`, marks it `private`, and drops the starter's `description` so your project doesn't describe itself as the template.
+2. Deletes the starter's own repo metadata — `.github/FUNDING.yml`, the Slack and dependabot-automerge workflows (both pinned to darkroom's Vercel team and branch protection), `CHANGELOG.md`, and `plans/`. The starter's CI, dependabot config and PR template are kept.
 3. Replaces the clone's git history with a fresh `git init` + initial commit.
+
+`LICENSE` is kept on purpose: the starters are MIT and the notice has to travel with the code. Replace it if your project ships under different terms.
 
 ## Options
 
@@ -37,7 +39,7 @@ bun create darkroom [name] [options]
 --skip-install            Skip dependency installation (implies --skip-setup)
 ```
 
-`--preset` and `--keep` are mutually exclusive, and both are satus-only — novus ships no integration picker.
+`--preset` and `--keep` are mutually exclusive. `--preset`, `--keep` and `--clean-homepage` are satus-only — novus ships no integration picker, and passing them with `--starter novus` is an error rather than a silent no-op.
 
 | `--preset` | Keeps |
 | --- | --- |
