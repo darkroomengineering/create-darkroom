@@ -19,7 +19,7 @@ The CLI is a thin orchestrator. It clones the starter you pick, installs depende
 
 On top of the clone it does three things:
 
-1. Rewrites `package.json` — sets your project name, resets the version to `0.1.0`, marks it `private`, and drops the starter's `description` so your project doesn't describe itself as the template.
+1. Rewrites `package.json` — sets your project name, resets the version to `0.1.0`, marks it `private`, and retains an empty `description` string so metadata consumers keep the field without inheriting starter copy.
 2. Deletes the starter's own repo metadata — `.github/FUNDING.yml`, the Lighthouse-to-Slack and Dependabot auto-merge workflows, `CHANGELOG.md`, and `plans/`. The starter's CI, Dependabot config and PR template are kept.
 3. Replaces the clone's git history with a fresh `git init` + initial commit.
 
