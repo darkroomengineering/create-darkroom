@@ -200,18 +200,23 @@ async function promptStarter(): Promise<StarterId> {
 /**
  * Rewrite the cloned package.json into a fresh project manifest.
  *
- * `description` is dropped rather than rewritten — inheriting it would leave a
- * new project describing itself as the starter. `license` stays: it matches the
- * LICENSE file the scaffold keeps for MIT attribution.
+ * `description` stays empty so metadata consumers retain a string field without
+ * inheriting starter copy. `license` stays: it matches the LICENSE file the
+ * scaffold keeps for MIT attribution.
  */
-function personalizePackageJson(projectPath: string, name: string): void {
+export function personalizePackageJson(
+  projectPath: string,
+  name: string,
+): void {
   const pkgPath = join(projectPath, 'package.json')
-  const pkg = JSON.parse(readFileSync(pkgPath, 'utf8'))
-  pkg.name = name
-  pkg.version = '0.1.0'
-  pkg.private = true
-  delete pkg.description
-  writeFileSync(pkgPath, `${JSON.stringify(pkg, null, 2)}\n`)
+  const pkg: unknown = JSON.parse(readFileSync(pkgPath, 'utf8'))
+  if (typeof pkg !== 'object' || pkg === null || Array.isArray(pkg)) {
+    throw new Error('Starter package.json must contain an object')
+  }
+  const identity = { name, version: '0.1.0', private: true, description: '' }
+  // Reserve canonical field order, then override the starter's identity values.
+  const personalized = { ...identity, ...pkg, ...identity }
+  writeFileSync(pkgPath, `${JSON.stringify(personalized, null, 2)}\n`)
 }
 
 /** Delete the starter's own repo metadata from the new project. */
