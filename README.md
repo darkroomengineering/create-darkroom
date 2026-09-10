@@ -20,7 +20,7 @@ The CLI is a thin orchestrator. It clones the starter you pick, installs depende
 On top of the clone it does three things:
 
 1. Rewrites `package.json` — sets your project name, resets the version to `0.1.0`, marks it `private`, and drops the starter's `description` so your project doesn't describe itself as the template.
-2. Deletes the starter's own repo metadata — `.github/FUNDING.yml`, the Slack and dependabot-automerge workflows (both pinned to darkroom's Vercel team and branch protection), `CHANGELOG.md`, and `plans/`. The starter's CI, dependabot config and PR template are kept.
+2. Deletes the starter's own repo metadata — `.github/FUNDING.yml`, the Lighthouse-to-Slack and Dependabot auto-merge workflows, `CHANGELOG.md`, and `plans/`. The starter's CI, Dependabot config and PR template are kept.
 3. Replaces the clone's git history with a fresh `git init` + initial commit.
 
 `LICENSE` is kept on purpose: the starters are MIT and the notice has to travel with the code. Replace it if your project ships under different terms.
@@ -65,11 +65,13 @@ bun create darkroom my-project --starter satus --ref v2.0.1
 
 ## After scaffolding
 
-- **satus** — `bun dev`. Re-run `bun run setup:project` any time to change the integration set.
+- **satus** — `bun dev`. Choose integrations during scaffolding; successful setup removes its own setup machinery. If you used `--skip-setup`, run `bun run setup:project` before starting project work.
 - **novus** — `bun dev` serves the bundled `example/` marketing site. Point `appDirectory` at `app/` in `react-router.config.ts` and delete `example/` to start on your own routes.
+
+Before deploying, follow the [project deployment checklist](https://github.com/darkroomengineering/satus/blob/main/ARCHITECTURE.md#deployment-checklist) for GitHub ownership, shared CI, dependency policy and Vercel checks. CI is retained, but merge automation requires explicit project adoption.
 
 ## Requirements
 
-- [bun](https://bun.sh) ≥ 1.3.5 — darkroom starters use bun as their package manager and script runner
+- [bun](https://bun.sh) ≥ 1.3.5 for this generator; match the selected starter's exact `packageManager` pin for installation and checks
 - git
-- Node ≥ 22 — required by both starters, and by `npm create` when you invoke it that way
+- Node ≥ 22 for this generator, including `npm create`; generated projects follow their own `.node-version` and `engines` requirements
